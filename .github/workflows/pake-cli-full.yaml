@@ -1,0 +1,433 @@
+name: Build App With Pake CLI (Full Options)
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.26.2"
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Website URL or local HTML file"
+        required: true
+      name:
+        description: "App name (lowercase for Linux)"
+        required: true
+      platforms:
+        description: "Platforms to build (comma-separated: linux,macos,windows)"
+        required: false
+        default: "linux,macos,windows"
+      linux_targets:
+        description: "Linux package targets (comma-separated, e.g. deb,appimage,rpm,zst)"
+        required: false
+      macos_targets:
+        description: "macOS package targets (e.g. dmg,app,intel,apple,universal)"
+        required: false
+      windows_targets:
+        description: "Windows package targets (e.g. x64,arm64)"
+        required: false
+      icon:
+        description: "Icon URL or path, auto-fetch if empty"
+        required: false
+      width:
+        description: "Window width (px)"
+        required: false
+        default: "1200"
+      height:
+        description: "Window height (px)"
+        required: false
+        default: "780"
+      app_version:
+        description: "App version"
+        required: false
+        default: "1.0.0"
+      title:
+        description: "Window title bar text"
+        required: false
+      fullscreen:
+        description: "Start in fullscreen mode"
+        required: false
+        type: boolean
+        default: false
+      maximize:
+        description: "Start window maximized"
+        required: false
+        type: boolean
+        default: false
+      hide_title_bar:
+        description: "Hide title bar (macOS only)"
+        required: false
+        type: boolean
+        default: false
+      dark_mode:
+        description: "Force dark mode"
+        required: false
+        type: boolean
+        default: false
+      show_system_tray:
+        description: "Display the application in system tray"
+        required: false
+        type: boolean
+        default: false
+      incognito:
+        description: "Launch in incognito/private browsing mode"
+        required: false
+        type: boolean
+        default: false
+      multi_arch:
+        description: "Universal binary (macOS only)"
+        required: false
+        type: boolean
+        default: false
+      multi_instance:
+        description: "Allow running more than one instance at the same time"
+        required: false
+        type: boolean
+        default: false
+      multi_window:
+        description: "Allow opening multiple windows within a single app instance"
+        required: false
+        type: boolean
+        default: false
+      new_window:
+        description: "Allow sites to open new windows"
+        required: false
+        type: boolean
+        default: false
+      inject:
+        description: "CSS/JS files to inject (comma-separated or multiple)"
+        required: false
+      debug:
+        description: "Enable developer tools and detailed logging"
+        required: false
+        type: boolean
+        default: false
+      extra_args:
+        description: "Additional CLI options as a single string (e.g. --proxy-url http://... --zoom 120)"
+        required: false
+  workflow_call:
+    inputs:
+      url:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      platforms:
+        type: string
+        required: false
+        default: "linux,macos,windows"
+      linux_targets:
+        type: string
+        required: false
+      macos_targets:
+        type: string
+        required: false
+      windows_targets:
+        type: string
+        required: false
+      icon:
+        type: string
+        required: false
+      width:
+        type: string
+        required: false
+        default: "1200"
+      height:
+        type: string
+        required: false
+        default: "780"
+      app_version:
+        type: string
+        required: false
+        default: "1.0.0"
+      title:
+        type: string
+        required: false
+      fullscreen:
+        type: boolean
+        required: false
+        default: false
+      maximize:
+        type: boolean
+        required: false
+        default: false
+      hide_title_bar:
+        type: boolean
+        required: false
+        default: false
+      dark_mode:
+        type: boolean
+        required: false
+        default: false
+      show_system_tray:
+        type: boolean
+        required: false
+        default: false
+      incognito:
+        type: boolean
+        required: false
+        default: false
+      multi_arch:
+        type: boolean
+        required: false
+        default: false
+      multi_instance:
+        type: boolean
+        required: false
+        default: false
+      multi_window:
+        type: boolean
+        required: false
+        default: false
+      new_window:
+        type: boolean
+        required: false
+        default: false
+      inject:
+        type: string
+        required: false
+      debug:
+        type: boolean
+        required: false
+        default: false
+      extra_args:
+        type: string
+        required: false
+
+jobs:
+  setup:
+    name: Configure build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Determine build matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          PLATFORMS="${{ inputs.platforms }}"
+          MATRIX='{"include":['
+          FIRST=true
+
+          add_entry() {
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              MATRIX="$MATRIX,"
+            fi
+            MATRIX="$MATRIX$1"
+          }
+
+          if [[ "$PLATFORMS" == *"linux"* ]]; then
+            add_entry '{"build":"linux","os":"ubuntu-latest","rust":"stable"}'
+          fi
+
+          if [[ "$PLATFORMS" == *"macos"* ]]; then
+            add_entry '{"build":"macos","os":"macos-latest","rust":"stable"}'
+          fi
+
+          if [[ "$PLATFORMS" == *"windows"* ]]; then
+            add_entry '{"build":"windows","os":"windows-latest","rust":"stable-x86_64-msvc"}'
+          fi
+
+          MATRIX="$MATRIX]}"
+
+          if [ "$MATRIX" = '{"include":[]}' ]; then
+            echo "❌ No valid platform selected. Allowed values: linux, macos, windows"
+            exit 1
+          fi
+
+          echo "matrix=$MATRIX"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.build }}
+    needs: setup
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Setup Node.js Environment
+        uses: ./.github/actions/setup-env
+        with:
+          mode: build
+
+      - name: Build CLI
+        run: pnpm run cli:build
+
+      - name: Setup mold linker
+        if: runner.os == 'Linux'
+        uses: rui314/setup-mold@v1
+
+      - name: Rust cache restore
+        uses: actions/cache/restore@v4.2.0
+        id: cache_store
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-pake-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build App
+        timeout-minutes: 25
+        shell: bash
+        env:
+          INPUT_URL: ${{ inputs.url }}
+          INPUT_NAME: ${{ inputs.name }}
+          INPUT_MATRIX_BUILD: ${{ matrix.build }}
+          INPUT_LINUX_TARGETS: ${{ inputs.linux_targets }}
+          INPUT_MACOS_TARGETS: ${{ inputs.macos_targets }}
+          INPUT_WINDOWS_TARGETS: ${{ inputs.windows_targets }}
+          INPUT_ICON: ${{ inputs.icon }}
+          INPUT_WIDTH: ${{ inputs.width }}
+          INPUT_HEIGHT: ${{ inputs.height }}
+          INPUT_APP_VERSION: ${{ inputs.app_version }}
+          INPUT_TITLE: ${{ inputs.title }}
+          INPUT_FULLSCREEN: ${{ inputs.fullscreen }}
+          INPUT_MAXIMIZE: ${{ inputs.maximize }}
+          INPUT_HIDE_TITLE_BAR: ${{ inputs.hide_title_bar }}
+          INPUT_DARK_MODE: ${{ inputs.dark_mode }}
+          INPUT_SHOW_SYSTEM_TRAY: ${{ inputs.show_system_tray }}
+          INPUT_INCOGNITO: ${{ inputs.incognito }}
+          INPUT_MULTI_ARCH: ${{ inputs.multi_arch }}
+          INPUT_MULTI_INSTANCE: ${{ inputs.multi_instance }}
+          INPUT_MULTI_WINDOW: ${{ inputs.multi_window }}
+          INPUT_NEW_WINDOW: ${{ inputs.new_window }}
+          INPUT_INJECT: ${{ inputs.inject }}
+          INPUT_DEBUG: ${{ inputs.debug }}
+          INPUT_EXTRA_ARGS: ${{ inputs.extra_args }}
+        run: |
+          node <<'NODE_SCRIPT'
+          const { spawnSync } = require('child_process');
+
+          const args = [process.env.INPUT_URL, '--name', process.env.INPUT_NAME];
+
+          function addStringArg(flag, envName) {
+            const value = process.env[envName];
+            if (value && value.trim() !== '') {
+              args.push(flag, value.trim());
+            }
+          }
+
+          function addBooleanArg(flag, envName) {
+            if (process.env[envName] === 'true') {
+              args.push(flag);
+            }
+          }
+
+          addStringArg('--icon', 'INPUT_ICON');
+          addStringArg('--width', 'INPUT_WIDTH');
+          addStringArg('--height', 'INPUT_HEIGHT');
+          addStringArg('--app-version', 'INPUT_APP_VERSION');
+
+          const matrixBuild = process.env.INPUT_MATRIX_BUILD;
+          let platformTargets = '';
+          if (matrixBuild === 'linux') {
+            platformTargets = process.env.INPUT_LINUX_TARGETS;
+          } else if (matrixBuild === 'macos') {
+            platformTargets = process.env.INPUT_MACOS_TARGETS;
+          } else if (matrixBuild === 'windows') {
+            platformTargets = process.env.INPUT_WINDOWS_TARGETS;
+          }
+          if (platformTargets && platformTargets.trim() !== '') {
+            args.push('--targets', platformTargets.trim());
+          }
+          addStringArg('--title', 'INPUT_TITLE');
+          addStringArg('--inject', 'INPUT_INJECT');
+
+          addBooleanArg('--fullscreen', 'INPUT_FULLSCREEN');
+          addBooleanArg('--maximize', 'INPUT_MAXIMIZE');
+          addBooleanArg('--hide-title-bar', 'INPUT_HIDE_TITLE_BAR');
+          addBooleanArg('--dark-mode', 'INPUT_DARK_MODE');
+          addBooleanArg('--show-system-tray', 'INPUT_SHOW_SYSTEM_TRAY');
+          addBooleanArg('--incognito', 'INPUT_INCOGNITO');
+          addBooleanArg('--multi-arch', 'INPUT_MULTI_ARCH');
+          addBooleanArg('--multi-instance', 'INPUT_MULTI_INSTANCE');
+          addBooleanArg('--multi-window', 'INPUT_MULTI_WINDOW');
+          addBooleanArg('--new-window', 'INPUT_NEW_WINDOW');
+          addBooleanArg('--debug', 'INPUT_DEBUG');
+
+          const extraArgs = process.env.INPUT_EXTRA_ARGS;
+          if (extraArgs && extraArgs.trim() !== '') {
+            // Split on whitespace while respecting single and double quotes.
+            const parsed = extraArgs.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+            for (const token of parsed) {
+              const unquoted = token.replace(/^["']|["']$/g, '');
+              if (unquoted !== '') {
+                args.push(unquoted);
+              }
+            }
+          }
+
+          console.log('Running: node dist/cli.js', args.map(a => a.includes(' ') ? `"${a}"` : a).join(' '));
+          const result = spawnSync('node', ['dist/cli.js', ...args], { stdio: 'inherit' });
+          process.exit(result.status ?? 1);
+          NODE_SCRIPT
+
+      - name: Restore Cargo.lock on Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git checkout -- src-tauri/Cargo.lock
+
+      - name: Upload Linux artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-${{ matrix.build }}
+          path: |
+            *.deb
+            *.AppImage
+            *.rpm
+            *.pkg.tar.zst
+            *-binary
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload macOS artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-${{ matrix.build }}
+          path: |
+            *.dmg
+            *.app
+            *-binary
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Windows artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-${{ matrix.build }}
+          path: |
+            *.msi
+            *.exe
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Rust cache store
+        uses: actions/cache/save@v4.2.0
+        if: steps.cache_store.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-pake-${{ hashFiles('**/Cargo.lock') }}
