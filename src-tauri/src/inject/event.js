@@ -6,9 +6,24 @@ const shortcuts = {
   "+": () => zoomIn(),
   0: () => setZoom("100%"),
   r: () => window.location.reload(),
+  l: () => copyCurrentPageUrl(),
+  L: () => copyCurrentPageUrl(),
   ArrowUp: () => scrollTo(0, 0),
   ArrowDown: () => scrollTo(0, document.body.scrollHeight),
 };
+
+function copyCurrentPageUrl() {
+  const url = window.location.href;
+  if (navigator.clipboard && typeof navigator.clipboard.writeText == "function") {
+    navigator.clipboard.writeText(url).then(() => {
+      try {
+        new Notification("Pake", {
+          body: "URL copied to clipboard",
+        });
+      } catch(e) { }
+    }).catch(() => { })
+  }
+}
 
 function setZoom(zoom) {
   // Use native WebView zoom (WKWebView pageZoom / WebView2 ZoomFactor) instead of
