@@ -15,7 +15,7 @@ const shortcuts = {
 
 function openDevTools() {
   try {
-    if (window.__TAURI__?.webview?.getCurrentWebView()?.openDevTools()) {
+    if (window.__TAURI__?.webview?.getCurrentWebView()?.openDevTools) {
       window.__TAURI__.webview.getCurrentWebview().openDevTools();
     } else if (window.__TAURI__?.window?.getCurrentWindow()?.openDevTools) {
       window.__TAURI__.window.getCurrentWindow().openDevTools();
