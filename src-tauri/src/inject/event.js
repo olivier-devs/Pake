@@ -9,6 +9,8 @@ const shortcuts = {
   l: () => copyCurrentPageUrl(),
   L: () => copyCurrentPageUrl(),
   F12: () => openDevTools(),
+  i: () => openDevTools(),
+  I: () => openDevTols(),
   ArrowUp: () => scrollTo(0, 0),
   ArrowDown: () => scrollTo(0, document.body.scrollHeight),
 };
