@@ -600,7 +600,7 @@ fn build_window(
     }
 
     window_builder = window_builder.on_navigation(|_| true);
-
+    window_builder = window_builder.devtools(true);
     let window = window_builder.build()?;
 
     // macOS WKWebView ignores the Chromium --ignore-certificate-errors flag, so
