@@ -8,9 +8,20 @@ const shortcuts = {
   r: () => window.location.reload(),
   l: () => copyCurrentPageUrl(),
   L: () => copyCurrentPageUrl(),
+  F12: () => openDevTools(),
   ArrowUp: () => scrollTo(0, 0),
   ArrowDown: () => scrollTo(0, document.body.scrollHeight),
 };
+
+function openDevTools() {
+  try {
+    if (window.__TAURI__?.webview?.getCurrentWebView()?.openDevTools()) {
+      window.__TAURI__.webview.getCurrentWebview().openDevTools();
+    } else if (window.__TAURI__?.window?.getCurrentWindow()?.openDevTools) {
+      window.__TAURI__.window.getCurrentWindow().openDevTools();
+    }    
+  } catch (e) {}
+}
 
 function copyCurrentPageUrl() {
   const url = window.location.href;
